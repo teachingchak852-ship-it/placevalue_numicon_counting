@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Numicon 按數取量大挑戰 (位值色彩對應版)</title>
+    <title>Numicon 按數取量大挑戰 (支援個位數分拆組合)</title>
     <style>
         body {
             font-family: 'PingFang HK', 'Microsoft JhengHei', sans-serif;
@@ -152,7 +152,7 @@
         .palette-plate:active { transform: scale(0.95); }
         .in-zone-plate:hover { opacity: 0.75; transform: scale(0.96); }
 
-        /* 板塊底下的數字圓標籤：根據十位/個位色彩做區分 */
+        /* 板塊底下的數字圓標籤 */
         .plate-number {
             margin-top: 5px;
             font-size: 15px;
@@ -177,7 +177,6 @@
             background-color: #fef5e7;
         }
 
-        /* Numicon SVG 陰影 */
         .numicon-svg {
             filter: drop-shadow(0 2px 3px rgba(0,0,0,0.18));
             display: block;
@@ -185,13 +184,13 @@
 
         /* 提示文字 */
         #feedback {
-            font-size: 22px;
+            font-size: 20px;
             font-weight: bold;
             min-height: 32px;
             margin: 8px 0;
         }
 
-        /* 煙花 Canvas 全螢幕覆蓋 */
+        /* 煙花 Canvas */
         #fireworksCanvas {
             position: fixed;
             top: 0;
@@ -221,7 +220,6 @@
                 <input type="number" id="rangeMax" value="99" min="1" max="99" style="width: 55px;">
                 <button class="btn-rand" onclick="newQuestion()">🎲 出題</button>
             </div>
-            <!-- 目標數字：十位為藍色，個位為橙色 -->
             <div class="target-number" id="targetDisplay">--</div>
             <div id="feedback">點擊下方板塊放進十位或個位！</div>
         </div>
@@ -238,8 +236,8 @@
 
             <div class="zone-card zone-ones">
                 <div class="zone-title color-ones">
-                    <span>個位區 (放個位板)</span>
-                    <small id="onesCount">已放: 0 塊</small>
+                    <span>個位區 (可用組合拼砌)</span>
+                    <small id="onesCount">總和: 0</small>
                 </div>
                 <div class="zone-drop-area" id="onesZone"></div>
             </div>
@@ -249,7 +247,7 @@
             <button class="btn-check" onclick="checkAnswer()">✅ 檢查答案</button>
             <button class="btn-clear" onclick="clearAllPlates()">🗑️ 全部重置</button>
         </div>
-        <div class="hint-text">💡 提示：點擊工具箱板塊提取；放錯可點擊區內板塊直接移除！</div>
+        <div class="hint-text">💡 提示：個位支援組合拼砌（例如 7 可以用 4 和 3 拼成）！放錯可直接點擊板塊移除。</div>
 
         <!-- 工具列 (1-10 號 Numicon) -->
         <div class="palette-wrapper">
@@ -405,7 +403,6 @@
                 </svg>
             `;
 
-            // 10 號標籤使用十位藍色，1-9 號標籤使用個位橙色
             const badgeClass = (n === 10) ? 'badge-tens' : 'badge-ones';
 
             return `
@@ -471,8 +468,9 @@
                 onesZone.appendChild(item);
             });
 
+            const onesSum = placedOnes.reduce((a, b) => a + b, 0);
             document.getElementById('tensCount').innerText = `已放: ${placedTens.length} 塊`;
-            document.getElementById('onesCount').innerText = `已放: ${placedOnes.length} 塊`;
+            document.getElementById('onesCount').innerText = `總和: ${onesSum} (${placedOnes.length}塊)`;
         }
 
         function clearAllPlates() {
@@ -483,7 +481,6 @@
             document.getElementById('feedback').style.color = "#7f8c8d";
         }
 
-        // 出題：將數字拆成「十位藍色」與「個位橙色」
         function newQuestion() {
             const maxVal = Math.min(Math.max(parseInt(document.getElementById('rangeMax').value) || 99, 1), 99);
             targetNum = Math.floor(Math.random() * maxVal) + 1;
@@ -503,6 +500,7 @@
             document.getElementById('feedback').style.color = "#2c3e50";
         }
 
+        // 檢查答案：允許個位組合
         function checkAnswer() {
             const targetTens = Math.floor(targetNum / 10);
             const targetOnes = targetNum % 10;
@@ -511,27 +509,33 @@
             const currentOnesTotal = placedOnes.reduce((a, b) => a + b, 0);
 
             const isTensCorrect = (currentTensCount === targetTens);
-            const isOnesCorrect = (currentOnesTotal === targetOnes && placedOnes.length === (targetOnes === 0 ? 0 : 1));
+            // 個位只需總和相等即算啱
+            const isOnesCorrect = (currentOnesTotal === targetOnes);
 
             if (isTensCorrect && isOnesCorrect) {
                 playSound('win');
-                document.getElementById('feedback').innerText = `🎉 答啱啦！完美展示 ${targetNum}！ 🏆`;
+                
+                // 額外鼓勵字句：如果有用到分拆組合
+                let comboMsg = '';
+                if (placedOnes.length > 1) {
+                    comboMsg = ` <span style="font-size: 16px; color: #d35400;">(個位組合：${placedOnes.join(' + ')} = ${targetOnes}，好醒目！)</span>`;
+                }
+
+                document.getElementById('feedback').innerHTML = `🎉 答啱啦！完美展示 ${targetNum}！ 🏆${comboMsg}`;
                 document.getElementById('feedback').style.color = "#27ae60";
                 launchFireworks();
             } else {
                 playSound('wrong');
                 let errs = [];
                 if (!isTensCorrect) {
-                    errs.push(`十位需要 ${targetTens} 塊 10 號板`);
+                    errs.push(`十位需要 ${targetTens} 塊 10 號板 (而家有 ${currentTensCount} 塊)`);
                 }
                 if (!isOnesCorrect) {
-                    if (targetOnes === 0) {
-                        errs.push(`個位唔需要放板塊`);
-                    } else {
-                        errs.push(`個位需要 1 塊 ${targetOnes} 號板`);
-                    }
+                    const diff = Math.abs(currentOnesTotal - targetOnes);
+                    const moreOrLess = currentOnesTotal > targetOnes ? '多咗' : '少咗';
+                    errs.push(`個位總和需要是 ${targetOnes} (而家係 ${currentOnesTotal}，${moreOrLess} ${diff})`);
                 }
-                document.getElementById('feedback').innerHTML = `哎呀未啱喎！💡 提示：${errs.join('，')}。`;
+                document.getElementById('feedback').innerHTML = `哎呀未啱喎！💡 提示：${errs.join('；')}。`;
                 document.getElementById('feedback').style.color = "#c0392b";
             }
         }
